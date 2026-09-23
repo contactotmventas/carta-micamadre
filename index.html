@@ -1542,6 +1542,9 @@
   window.addEventListener("hashchange", function(){ _porLaDireccion(true); });
 
   var MOZO_URL = "https://buzon-tmventas.contacto-tmventas.workers.dev", MOZO_LOCAL = "azmejgbrf59lft56wz";
+  // El mismo numero que LIMITE_POR_MESA_MS en el buzon: lo que tarda en
+  // aceptar otro llamado de la misma mesa. Si se cambia alla, se cambia aca.
+  var MOZO_ESPERA_MS = 45000;
   // La mesa vale SOLO si viene en la direccion, o sea si se escaneo el QR de esa
   // mesa. Antes quedaba guardada en el telefono para siempre: el que abria la
   // carta que le mandaron por WhatsApp veia "Mesa 4" desde su casa, y -mucho
@@ -1595,10 +1598,23 @@
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ local: MOZO_LOCAL, mesa: mesa, tipo: tipo })
     }).then(function(r){ return r.json(); }).then(function(j){
-      if (j && j.ok) {
+      if (j && j.ok && j.yaAvisado) {
+        // EL BUZON YA TENIA ESTE LLAMADO DE HACE MENOS DE 45 SEGUNDOS y no
+        // guardo otro. Antes esto se mostraba igual que un llamado nuevo
+        // ("Listo, el mozo ya fue avisado") y era mentira: no se habia avisado
+        // nada nuevo. Se dice lo que paso, y el boton queda trabado el tiempo
+        // que el buzon de verdad tarda en aceptar otro.
+        if (b) { b.classList.add("mozo-ok"); b.innerHTML = "✓ Ya estaba avisado"; }
+        mozoAviso(tipo === "cuenta" ? "Ya habiamos avisado hace un momento que pedis la cuenta. Ya viene." : "Ya habiamos avisado al mozo hace un momento. Ya viene.", 6000);
+        setTimeout(function(){ if (b) { b.disabled = false; b.classList.remove("mozo-ok"); b.innerHTML = textoOriginal; } }, MOZO_ESPERA_MS);
+      } else if (j && j.ok) {
         if (b) { b.classList.add("mozo-ok"); b.innerHTML = "✓ Avisado"; }
         mozoAviso(tipo === "cuenta" ? "Listo, ya avisamos que pedís la cuenta." : "Listo, el mozo ya fue avisado. Ahí va.");
-        setTimeout(function(){ if (b) { b.disabled = false; b.classList.remove("mozo-ok"); b.innerHTML = textoOriginal; } }, 30000);
+        // El boton se destraba cuando el buzon acepta OTRO llamado de esta
+        // mesa (45 s), no antes: destrabarlo a los 30 dejaba 15 segundos en
+        // los que el cliente apretaba, la pagina decia "Avisado" y no se
+        // guardaba nada.
+        setTimeout(function(){ if (b) { b.disabled = false; b.classList.remove("mozo-ok"); b.innerHTML = textoOriginal; } }, MOZO_ESPERA_MS);
       } else if (j && j.error === "demasiados-llamados") {
         if (b) { b.disabled = false; b.innerHTML = textoOriginal; }
         mozoAviso("Hubo muchos llamados seguidos. Esperá un momento o avisale a un mozo.");
